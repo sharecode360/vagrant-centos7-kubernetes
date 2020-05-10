@@ -1,0 +1,40 @@
+﻿1.原来工作正常的系统，重启后无法启动显示下面的错误信息
+[root@master vagrant]# systemctl status kubelet
+● kubelet.service - kubelet: The Kubernetes Node Agent
+   Loaded: loaded (/usr/lib/systemd/system/kubelet.service; enabled; vendor preset: disabled)
+  Drop-In: /usr/lib/systemd/system/kubelet.service.d
+           └─10-kubeadm.conf
+   Active: activating (auto-restart) (Result: exit-code) since Sun 2020-05-10 00:30:49 UTC; 6s ago
+     Docs: https://kubernetes.io/docs/
+  Process: 12183 ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS (code=exited, status=255)
+ Main PID: 12183 (code=exited, status=255)
+
+May 10 00:30:49 master systemd[1]: Unit kubelet.service entered fail....
+May 10 00:30:49 master systemd[1]: kubelet.service failed.
+Hint: Some lines were ellipsized, use -l to show in full.
+
+查看日志的记录
+[root@master vagrant]# journalctl -xe
+May 10 00:34:09 master kubelet[13370]: I0510 00:34:09.554423   13370 server.go:646] --cgroups-per-qos enabled, but --cgroup-root was not specified.  defaulting to /
+May 10 00:34:09 master kubelet[13370]: F0510 00:34:09.554775   13370 server.go:274] failed to run Kubelet: running with swap on is not supported, please disable swap! or set --fail-swap-on flag to false. /pro
+May 10 00:34:09 master systemd[1]: kubelet.service: main process exited, code=exited, status=255/n/a
+May 10 00:34:09 master systemd[1]: Unit kubelet.service entered failed state.
+May 10 00:34:09 master systemd[1]: kubelet.service failed.
+
+解决方法：
+关闭swap分区
+[root@node2 vagrant]# sed -i '/swap/ s/\(.*\)$/#\1/g' /etc/fstab
+[root@node2 vagrant]# swappoff -a
+
+2.node的状态一直是NotReady，查看node的日志
+[root@node1 vagrant]# journalctl -xe
+May 10 01:02:02 node1 kubelet[20551]: F0510 01:02:02.374244   20551 server.go:274] failed to run Kubelet: misconfiguration: kubelet cgroup driver: "cgroupfs" is different from docker cgroup driver: "systemd"
+May 10 01:02:02 node1 systemd[1]: kubelet.service: main process exited, code=exited, status=255/n/a
+May 10 01:02:02 node1 systemd[1]: Unit kubelet.service entered failed state.
+May 10 01:02:02 node1 systemd[1]: kubelet.service failed.
+
+试着用下面的方法解决，但是最终没有成功，最后进行了初始化构建kubeadm init
+》[root@master vagrant]# vim /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf
+编辑
+修改前:Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
+修改后:Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml --cgroup-driver=systemd"

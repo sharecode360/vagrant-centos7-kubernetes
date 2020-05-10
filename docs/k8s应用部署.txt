@@ -1,0 +1,121 @@
+﻿##############################
+######【部署Nginx应用】######
+#############################
+1.部署Ngix应用
+■生成部署文件
+[root@master ~]# vim deply.yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app: nginx-web
+  template:
+    metadata:
+      labels:
+        app: nginx-web
+    spec:
+      containers:
+      - name: nginx-container
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+
+■apiVersion的设置方法:
+参考文章：https://qiita.com/soymsk/items/69aeaa7945fe1f875822
+[root@master ~]# kubectl api-resources | grep Deployment
+deployments                       deploy       apps                           true         Deployment
+
+[root@master ~]# kubectl api-versions  | grep apps
+apps/v1
+
+
+■执行部署文件
+[root@master ~]# kubectl create -f deploy.yml
+
+■确认部署结果
+[root@master ~]# kubectl get deployment
+NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+nginx-deployment   6/6     6            6           108m
+
+■查看Node列，可以确认node1和node2中分别部署了3个容器
+[root@master ~]# kubectl get pod -o wide
+NAME                                READY   STATUS             RESTARTS   AGE    IP           NODE    NOMINATED NODE   READINESS GATES
+nginx-deployment-5d88c7dc4b-55x2d   1/1     Running            0          109m   10.244.1.4   node1   <none>           <none>
+nginx-deployment-5d88c7dc4b-7m284   1/1     Running            0          109m   10.244.2.2   node2   <none>           <none>
+nginx-deployment-5d88c7dc4b-bx4zp   1/1     Running            0          109m   10.244.1.2   node1   <none>           <none>
+nginx-deployment-5d88c7dc4b-fphqr   1/1     Running            0          109m   10.244.1.3   node1   <none>           <none>
+nginx-deployment-5d88c7dc4b-km6zg   1/1     Running            0          109m   10.244.2.3   node2   <none>           <none>
+nginx-deployment-5d88c7dc4b-r2l9f   1/1     Running            0          109m   10.244.2.4   node2   <none>           <none>
+
+2.为了连接各个POD，部署一个对话型的POD（busybox ）
+busybox： https://store.docker.com/images/busybox
+[root@master ~]# kubectl run bbox --image=busybox:latest -- tail -f /dev/null
+
+■查看对话型POD的状态是否为running，如果不能正常工作，就执行docker pull busybox把image下载下来
+[root@master ~]# kubectl get pod -o wide
+NAME                                READY   STATUS             RESTARTS   AGE    IP           NODE    NOMINATED NODE   READINESS GATES
+bbox                               1/1     Running            0          92m    10.244.2.6   node2   <none>           <none>
+
+■进入对话容器，进行各个POD的连通测试
+[root@master ~]# kubectl exec -it bbox sh
+/ # wget -q -O - http://10.244.1.2
+
+
+3.设置ClusterIP服务
+[root@master ~]# vim service_cluster_ip.yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-cluster-ip-service
+spec:
+  type: ClusterIP
+  selector:
+    app: nginx-web
+  ports:
+  - protocol: TCP
+    port: 80
+
+■执行部署文件
+[root@master ~]# kubectl create -f service_cluster_ip.yml
+
+■确认部署结果
+[root@master ~]# kubectl get svc -o wide
+NAME                       TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE    SELECTOR
+nginx-cluster-ip-service   ClusterIP   10.111.113.234   <none>        80/TCP         91m    app=nginx-web
+
+■进入对话型容器，访问ClusterIP服务
+[root@master ~]# kubectl exec -it bbox sh
+/ # wget -q -O - http://10.111.113.234
+
+
+4.通过设置NodePort服务，来从外部访问各个POD
+[root@master ~]# vim service_nodeport.yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-nodeport-service
+spec:
+  type: NodePort
+  selector:
+    app: nginx-web
+  ports:
+  - protocol: TCP
+    port: 80
+    nodePort: 31514
+
+■执行部署文件
+[root@master ~]# kubectl create -f service_nodeport.yml
+
+■确认部署结果
+[root@master ~]# kubectl get svc -o wide
+NAME                       TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE    SELECTOR
+nginx-nodeport-service     NodePort    10.100.232.118   <none>        80:31514/TCP   69m    app=nginx-web
+
+■通过Windows的浏览器来访问Ngix服务，下面的3个地址都可以访问所有的资源
+http://172.42.42.100:31514/
+http://172.42.42.101:31514/
+http://172.42.42.102:31514/
