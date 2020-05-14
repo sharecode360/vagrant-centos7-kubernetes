@@ -14,8 +14,14 @@ kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address=192.
 kubeadm init --pod-network-cidr=192.168.0.0/16 --apiserver-advertise-address=192.168.56.71
 
 #############################################################################################
-#2020/05/14 补充
+■2020/05/14 补充
 在手动安装的CentOS7中(不用vagrant，而是直接用官网镜像手动安装)，用Virtuabox的【192.168.56.1】这个网段成功配置了flannel
+#-------IP信息---------
+# master:192.168.56.10
+# node1:192.168.56.11
+# node2:192.168.56.12
+#---------------------
+
 #kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address=192.168.56.10
 
 #kubectl apply -f kube-flannel.yml
