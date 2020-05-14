@@ -38,3 +38,5 @@ May 10 01:02:02 node1 systemd[1]: kubelet.service failed.
 编辑
 修改前:Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
 修改后:Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml --cgroup-driver=systemd"
+
+3./etc/hosts文件中必须定义master和各个node的信息，否则在各个node中执行kubeadm join是会出现无法找到host的错误。
